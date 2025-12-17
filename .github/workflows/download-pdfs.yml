@@ -1,0 +1,100 @@
+name: Download LA PDFs
+
+on:
+  schedule:
+    # Kör varje timme mellan 04:00-22:00 (dansk tid)
+    - cron: '0 3-21 * * *'
+  workflow_dispatch:  # Tillåter manuell körning
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      
+      - name: Create pdfs directory
+        run: mkdir -p pdfs
+      
+      - name: Get dates
+        id: dates
+        run: |
+          # Dansk/Svensk tidszon
+          export TZ="Europe/Copenhagen"
+          echo "today=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          echo "tomorrow=$(date -d '+1 day' +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      
+      - name: Download PDFs
+        run: |
+          BASE_URL="https://www.bane.dk/temp/FileFetch/RouteInformationFolder/La"
+          TODAY="${{ steps.dates.outputs.today }}"
+          TOMORROW="${{ steps.dates.outputs.tomorrow }}"
+          
+          # Routes att ladda ner
+          ROUTES="10 11"
+          
+          for ROUTE in $ROUTES; do
+            # Dagens PDF
+            FILENAME_TODAY="La-${ROUTE}-${TODAY}-${TODAY}.pdf"
+            echo "Downloading $FILENAME_TODAY..."
+            curl -f -o "pdfs/${FILENAME_TODAY}" "${BASE_URL}/${FILENAME_TODAY}" || echo "Not found: $FILENAME_TODAY"
+            
+            # Morgondagens PDF
+            FILENAME_TOMORROW="La-${ROUTE}-${TOMORROW}-${TOMORROW}.pdf"
+            echo "Downloading $FILENAME_TOMORROW..."
+            curl -f -o "pdfs/${FILENAME_TOMORROW}" "${BASE_URL}/${FILENAME_TOMORROW}" || echo "Not found: $FILENAME_TOMORROW"
+            
+            # Kolla efter rettelser (R1-R10)
+            for R in $(seq 1 10); do
+              RETTELSE_TODAY="La-${ROUTE}-${TODAY}-${TODAY}-R${R}.pdf"
+              curl -f -o "pdfs/${RETTELSE_TODAY}" "${BASE_URL}/${RETTELSE_TODAY}" 2>/dev/null || true
+              
+              RETTELSE_TOMORROW="La-${ROUTE}-${TOMORROW}-${TOMORROW}-R${R}.pdf"
+              curl -f -o "pdfs/${RETTELSE_TOMORROW}" "${BASE_URL}/${RETTELSE_TOMORROW}" 2>/dev/null || true
+            done
+          done
+          
+          # Lista nedladdade filer
+          echo "Downloaded files:"
+          ls -la pdfs/
+      
+      - name: Create index.json
+        run: |
+          cd pdfs
+          echo "[" > index.json
+          first=true
+          for f in *.pdf; do
+            if [ -f "$f" ]; then
+              if [ "$first" = true ]; then
+                first=false
+              else
+                echo "," >> index.json
+              fi
+              echo "  \"$f\"" >> index.json
+            fi
+          done
+          echo "]" >> index.json
+          cat index.json
+      
+      - name: Upload to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pdfs/
+  
+  deploy:
+    needs: download
+    runs-on: ubuntu-latest
+    
+    permissions:
+      pages: write
+      id-token: write
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
