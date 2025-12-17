@@ -13,8 +13,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
       
-      - name: Create pdfs directory
-        run: mkdir -p pdfs
+      - name: Clear old PDFs
+        run: rm -rf pdfs && mkdir -p pdfs
       
       - name: Get dates
         id: dates
@@ -30,63 +30,65 @@ jobs:
           TOMORROW="${{ steps.dates.outputs.tomorrow }}"
           ROUTES="10 11"
           
-          for ROUTE in $ROUTES; do
-            # Dagens PDF
-            FILENAME="La-${ROUTE}-${TODAY}-${TODAY}.pdf"
-            echo "Trying $FILENAME..."
-            if curl -f -s -o "pdfs/${FILENAME}" "${BASE_URL}/${FILENAME}"; then
-              echo "✓ Downloaded $FILENAME"
-            else
-              rm -f "pdfs/${FILENAME}"
-              echo "✗ Not available: $FILENAME"
-            fi
+          download_pdf() {
+            local filename=$1
+            local url="${BASE_URL}/${filename}"
+            local output="pdfs/${filename}"
             
-            # Morgondagens PDF
-            FILENAME="La-${ROUTE}-${TOMORROW}-${TOMORROW}.pdf"
-            echo "Trying $FILENAME..."
-            if curl -f -s -o "pdfs/${FILENAME}" "${BASE_URL}/${FILENAME}"; then
-              echo "✓ Downloaded $FILENAME"
-            else
-              rm -f "pdfs/${FILENAME}"
-              echo "✗ Not available: $FILENAME"
-            fi
-            
-            # Rettelser - endast om de faktiskt finns
-            for R in $(seq 1 10); do
-              FILENAME="La-${ROUTE}-${TODAY}-${TODAY}-R${R}.pdf"
-              if curl -f -s -o "pdfs/${FILENAME}" "${BASE_URL}/${FILENAME}" 2>/dev/null; then
-                # Kontrollera att filen inte är tom
-                if [ -s "pdfs/${FILENAME}" ]; then
-                  echo "✓ Downloaded rettelse: $FILENAME"
-                else
-                  rm -f "pdfs/${FILENAME}"
-                fi
-              else
-                rm -f "pdfs/${FILENAME}"
+            # Ladda ner filen
+            if curl -f -s -o "$output" "$url" 2>/dev/null; then
+              # Kontrollera att det är en riktig PDF (börjar med %PDF)
+              if head -c 4 "$output" | grep -q '%PDF'; then
+                echo "✓ $filename"
+                return 0
               fi
-              
-              FILENAME="La-${ROUTE}-${TOMORROW}-${TOMORROW}-R${R}.pdf"
-              if curl -f -s -o "pdfs/${FILENAME}" "${BASE_URL}/${FILENAME}" 2>/dev/null; then
-                if [ -s "pdfs/${FILENAME}" ]; then
-                  echo "✓ Downloaded rettelse: $FILENAME"
-                else
-                  rm -f "pdfs/${FILENAME}"
-                fi
+            fi
+            
+            # Ta bort om inte giltig PDF
+            rm -f "$output"
+            return 1
+          }
+          
+          for ROUTE in $ROUTES; do
+            # Dagens och morgondagens La
+            download_pdf "La-${ROUTE}-${TODAY}-${TODAY}.pdf" || echo "✗ La-${ROUTE}-${TODAY}-${TODAY}.pdf"
+            download_pdf "La-${ROUTE}-${TOMORROW}-${TOMORROW}.pdf" || echo "✗ La-${ROUTE}-${TOMORROW}-${TOMORROW}.pdf"
+            
+            # Rettelser - sluta när vi hittar 3 saknade i rad
+            missing=0
+            for R in $(seq 1 20); do
+              if download_pdf "La-${ROUTE}-${TODAY}-${TODAY}-R${R}.pdf"; then
+                missing=0
               else
-                rm -f "pdfs/${FILENAME}"
+                missing=$((missing + 1))
+                if [ $missing -ge 3 ]; then
+                  break
+                fi
+              fi
+            done
+            
+            missing=0
+            for R in $(seq 1 20); do
+              if download_pdf "La-${ROUTE}-${TOMORROW}-${TOMORROW}-R${R}.pdf"; then
+                missing=0
+              else
+                missing=$((missing + 1))
+                if [ $missing -ge 3 ]; then
+                  break
+                fi
               fi
             done
           done
           
           echo ""
-          echo "=== Downloaded files ==="
-          ls -la pdfs/ || echo "No files"
+          echo "=== Nedladdade filer ==="
+          ls -la pdfs/
       
-      - name: Create file list (only real PDFs)
+      - name: Create index.json
         run: |
           cd pdfs
-          # Lista endast filer som är större än 0 bytes och slutar med .pdf
-          find . -name "*.pdf" -size +0 -printf '%f\n' | sort | jq -R -s 'split("\n") | map(select(length > 0))' > index.json
+          # Lista endast giltiga PDF-filer
+          ls -1 *.pdf 2>/dev/null | jq -R -s 'split("\n") | map(select(length > 0))' > index.json || echo "[]" > index.json
           echo "=== index.json ==="
           cat index.json
       
