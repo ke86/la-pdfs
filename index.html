@@ -1079,12 +1079,15 @@
             }
 
             .pdf-overlay {
-                left: 0;
+                left: auto;
+                right: 0;
                 width: 50%;
                 height: calc(100vh - 44px);
             }
 
             .pdf-overlay.expanded {
+                left: 0;
+                right: 0;
                 width: 100%;
             }
         }
