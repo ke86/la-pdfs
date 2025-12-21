@@ -1875,8 +1875,26 @@
         // Saved trains (max 10) - stores objects with trainNum, variantIndex, and route
         let savedTrains = [];
 
+        function getSavedTrainsCookie() {
+            const match = document.cookie.match(/dkapp_trains=([^;]*)/);
+            if (match) {
+                try {
+                    return JSON.parse(decodeURIComponent(match[1]));
+                } catch (e) {
+                    return [];
+                }
+            }
+            return [];
+        }
+
+        function setSavedTrainsCookie() {
+            const expires = new Date();
+            expires.setTime(expires.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days
+            document.cookie = `dkapp_trains=${encodeURIComponent(JSON.stringify(savedTrains))}; expires=${expires.toUTCString()}; path=/`;
+        }
+
         function loadSavedTrains() {
-            // Note: localStorage not available in Poe iframe, using in-memory only
+            savedTrains = getSavedTrainsCookie();
             renderSavedTrains();
         }
 
@@ -1914,6 +1932,7 @@
             }
 
             savedTrains.push({ trainNum, variantIndex, route });
+            setSavedTrainsCookie();
             renderSavedTrains();
             // Re-render variants to update button states
             if (currentVariants.length > 0) {
@@ -1928,6 +1947,7 @@
         function removeSavedTrain(index, event) {
             event.stopPropagation(); // Prevent triggering search
             savedTrains.splice(index, 1);
+            setSavedTrainsCookie();
             renderSavedTrains();
             // Re-render variants to update button states
             if (currentVariants.length > 0) {
@@ -1937,6 +1957,7 @@
 
         function clearSavedTrains() {
             savedTrains = [];
+            setSavedTrainsCookie();
             renderSavedTrains();
             // Re-render variants to update button states
             if (currentVariants.length > 0) {
