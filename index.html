@@ -1083,52 +1083,6 @@
             opacity: 0.9;
         }
 
-        /* Fullscreen prompt */
-        .fullscreen-prompt {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 12px 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-            z-index: 2000;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            animation: slideUp 0.3s ease;
-        }
-
-        .fullscreen-prompt.hidden {
-            display: none;
-        }
-
-        .fullscreen-prompt-text {
-            font-size: 0.8rem;
-            color: var(--text-primary);
-        }
-
-        .fullscreen-prompt-btn {
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            cursor: pointer;
-            border: none;
-        }
-
-        .fullscreen-prompt-no {
-            background: var(--bg-primary);
-            color: var(--text-secondary);
-            border: 1px solid var(--border);
-        }
-
-        .fullscreen-prompt-yes {
-            background: var(--accent);
-            color: white;
-        }
 
         /* Saved trains */
         .saved-trains-container {
@@ -1383,20 +1337,12 @@
     <!-- Password Screen -->
     <div class="password-screen" id="passwordScreen">
         <div class="password-box">
-            <div class="password-icon">🚂</div>
             <h2>DKapp</h2>
             <p>Ange lösenord för att fortsätta</p>
             <input type="password" id="passwordInput" class="password-input" placeholder="Lösenord" autofocus="">
             <button class="password-btn" onclick="checkPassword()">Öppna</button>
             <div class="password-error hidden" id="passwordError">Fel lösenord</div>
         </div>
-    </div>
-
-    <!-- Fullscreen Prompt -->
-    <div class="fullscreen-prompt" id="fullscreenPrompt">
-        <span class="fullscreen-prompt-text">Öppna i helskärm?</span>
-        <button class="fullscreen-prompt-btn fullscreen-prompt-no" onclick="dismissFullscreenPrompt()">Nej</button>
-        <button class="fullscreen-prompt-btn fullscreen-prompt-yes" onclick="acceptFullscreenPrompt()">Ja</button>
     </div>
 
     <!-- Fixed Top Header -->
@@ -1454,10 +1400,6 @@
             </div>
 
             <div id="savedTrainsContainer" class="saved-trains-container hidden">
-                <div class="saved-trains-header">
-                    <span>📌 Sparade tåg</span>
-                    <button class="clear-saved-btn" onclick="clearSavedTrains()" title="Rensa alla">✕</button>
-                </div>
                 <div id="savedTrainsList" class="saved-trains-list"></div>
             </div>
 
@@ -1551,13 +1493,27 @@
 
         // Password protection
         const APP_PASSWORD = 'LaSr2025';
+        const LOGIN_HOURS = 12;
+
+        function setLoginCookie() {
+            const expires = new Date();
+            expires.setTime(expires.getTime() + (LOGIN_HOURS * 60 * 60 * 1000));
+            document.cookie = `dkapp_auth=1; expires=${expires.toUTCString()}; path=/`;
+        }
+
+        function isLoggedIn() {
+            return document.cookie.split(';').some(c => c.trim().startsWith('dkapp_auth='));
+        }
 
         function checkPassword() {
             const input = document.getElementById('passwordInput');
             const error = document.getElementById('passwordError');
 
             if (input.value === APP_PASSWORD) {
+                setLoginCookie();
                 document.getElementById('passwordScreen').classList.add('hidden');
+                // Try to enter fullscreen
+                document.documentElement.requestFullscreen().catch(() => {});
                 initApp();
             } else {
                 error.classList.remove('hidden');
@@ -1567,12 +1523,18 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            const passwordInput = document.getElementById('passwordInput');
-            passwordInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    checkPassword();
-                }
-            });
+            // Check if already logged in
+            if (isLoggedIn()) {
+                document.getElementById('passwordScreen').classList.add('hidden');
+                initApp();
+            } else {
+                const passwordInput = document.getElementById('passwordInput');
+                passwordInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        checkPassword();
+                    }
+                });
+            }
         });
 
         // ========================================
@@ -2644,18 +2606,6 @@
             }
         });
 
-        // Fullscreen prompt
-        function dismissFullscreenPrompt() {
-            document.getElementById('fullscreenPrompt').classList.add('hidden');
-        }
-
-        function acceptFullscreenPrompt() {
-            document.getElementById('fullscreenPrompt').classList.add('hidden');
-            document.documentElement.requestFullscreen().catch(err => {
-                console.log('Fullscreen error:', err);
-            });
-        }
-
         // Fullscreen functionality
         function toggleFullscreen() {
             if (!document.fullscreenElement) {
@@ -2668,8 +2618,6 @@
         }
 
         document.addEventListener('fullscreenchange', () => {
-            // Hide prompt if fullscreen is activated
-            document.getElementById('fullscreenPrompt').classList.add('hidden');
             const icon = document.getElementById('fullscreenIcon');
             if (document.fullscreenElement) {
                 // Exit fullscreen icon
