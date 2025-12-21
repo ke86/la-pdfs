@@ -1600,15 +1600,39 @@
         let countdownInterval = null; // Interval for countdown timer
 
         async function fetchAvailableFiles() {
+            const indexUrl = GITHUB_PAGES_URL + 'index.json';
+
+            // Try network first
             try {
-                const response = await fetch(GITHUB_PAGES_URL + 'index.json?t=' + Date.now());
+                const response = await fetch(indexUrl + '?t=' + Date.now());
                 if (response.ok) {
                     availableFiles = await response.json();
+                    // Cache the index.json for offline use
+                    if ('caches' in window) {
+                        const cache = await caches.open('dkapp-v2');
+                        cache.put(indexUrl, response.clone());
+                    }
                     return true;
                 }
             } catch (e) {
-                console.log('Kunde inte hämta index.json:', e.message);
+                console.log('Nätverksfel, försöker cache:', e.message);
             }
+
+            // Network failed, try cache
+            if ('caches' in window) {
+                try {
+                    const cache = await caches.open('dkapp-v2');
+                    const cachedResponse = await cache.match(indexUrl);
+                    if (cachedResponse) {
+                        availableFiles = await cachedResponse.json();
+                        console.log('Laddat index.json från cache');
+                        return true;
+                    }
+                } catch (e) {
+                    console.log('Cache-fel:', e.message);
+                }
+            }
+
             availableFiles = [];
             return false;
         }
@@ -1620,11 +1644,21 @@
                 const keys = await cache.keys();
                 keys.forEach(req => {
                     const url = req.url;
+                    // Check against availableFiles
                     availableFiles.forEach(fileName => {
                         if (url.includes(fileName)) {
                             cachedFiles.add(fileName);
                         }
                     });
+                    // Also extract filename from URL and add to cachedFiles
+                    const match = url.match(/La-\d+-\d{4}-\d{2}-\d{2}-\d{4}-\d{2}-\d{2}(-R\d+)?\.pdf/);
+                    if (match) {
+                        cachedFiles.add(match[0]);
+                        // Also add to availableFiles if not there
+                        if (!availableFiles.includes(match[0])) {
+                            availableFiles.push(match[0]);
+                        }
+                    }
                 });
             } catch (e) {
                 console.log('Cache check error:', e);
@@ -1816,12 +1850,14 @@
             renderDownloadItems('downloadsListToday', today, 'today', rettelserToday);
             renderDownloadItems('downloadsListTomorrow', tomorrow, 'tomorrow', rettelserTomorrow);
 
-            if (success && availableFiles.length > 0) {
-                const cachedCount = cachedFiles.size;
-                syncStatus.textContent = cachedCount > 0 ? `✓ ${cachedCount} offline` : `✓ ${availableFiles.length} filer`;
+            if (cachedFiles.size > 0) {
+                syncStatus.textContent = `✓ ${cachedFiles.size} sparade offline`;
+                syncStatus.classList.add('synced');
+            } else if (success && availableFiles.length > 0) {
+                syncStatus.textContent = `✓ ${availableFiles.length} filer`;
                 syncStatus.classList.add('synced');
             } else {
-                syncStatus.textContent = 'Väntar på GitHub Actions...';
+                syncStatus.textContent = 'Offline - ingen data';
             }
         }
 
