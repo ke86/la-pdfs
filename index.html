@@ -1064,8 +1064,8 @@
             }
 
             .la-sections {
-                flex-direction: column;
-                gap: 12px;
+                flex-direction: row;
+                gap: 8px;
             }
 
             .section {
@@ -1078,9 +1078,33 @@
                 overflow-y: auto;
             }
 
+            .download-item {
+                padding: 0;
+            }
+
+            .download-item-clickable {
+                padding: 4px 6px;
+            }
+
+            .route-name {
+                font-size: 0.7rem;
+            }
+
+            .file-name {
+                font-size: 0.5rem;
+            }
+
+            .file-status {
+                font-size: 0.55rem;
+            }
+
+            .cache-btn {
+                min-width: 28px;
+            }
+
             .pdf-overlay {
-                left: auto;
-                right: 0;
+                left: 0;
+                right: auto;
                 width: 50%;
                 height: calc(100vh - 44px);
             }
@@ -1089,6 +1113,16 @@
                 left: 0;
                 right: 0;
                 width: 100%;
+            }
+
+            .timetable-overlay {
+                left: auto;
+                right: 0;
+                bottom: 0;
+                width: 50%;
+                height: calc(100vh - 44px);
+                border-top: none;
+                border-left: 2px solid var(--train-accent);
             }
         }
 
