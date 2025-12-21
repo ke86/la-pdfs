@@ -898,7 +898,6 @@
             display: none;
             flex-direction: column;
             box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
-            border-top: 2px solid var(--train-accent);
         }
 
         .timetable-overlay.active {
@@ -980,11 +979,11 @@
             grid-template-columns: 1fr 45px 50px 40px;
             gap: 4px;
             padding: 6px 8px;
-            background: var(--train-accent);
-            color: white;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             font-weight: 700;
             font-size: 0.7rem;
-            border-bottom: 2px solid var(--border);
+            border-bottom: 1px solid var(--border);
         }
 
         .timetable-header-row span:not(:first-child) {
@@ -1121,8 +1120,6 @@
                 bottom: 0;
                 width: 50%;
                 height: calc(100vh - 44px);
-                border-top: none;
-                border-left: 2px solid var(--train-accent);
             }
         }
 
