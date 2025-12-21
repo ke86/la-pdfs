@@ -372,6 +372,43 @@
             color: var(--text-secondary);
         }
 
+        .file-status.cached {
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .cache-btn {
+            width: 10%;
+            min-width: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--accent);
+            cursor: pointer;
+            transition: opacity 0.2s ease;
+            border-left: 1px solid var(--border);
+        }
+
+        .cache-btn:hover:not(.cached):not(.disabled) {
+            opacity: 0.85;
+        }
+
+        .cache-btn.cached {
+            background: var(--success);
+            cursor: default;
+        }
+
+        .cache-btn.disabled {
+            background: var(--border);
+            cursor: not-allowed;
+        }
+
+        .cache-btn svg {
+            width: 16px;
+            height: 16px;
+            fill: white;
+        }
+
         
         .rettelse-section {
             margin-top: 4px;
@@ -1554,6 +1591,7 @@
         let currentPdfFileName = '';
         let currentPdf = null;
         const downloadedFiles = new Set();
+        const cachedFiles = new Set();
         let activeTrainNumber = null; // Track currently viewed train number
         let activeKbhDeparture = null; // Track departure time from København H
         let activeOsterportDeparture = null; // Track departure time from Østerport
@@ -1573,6 +1611,57 @@
             }
             availableFiles = [];
             return false;
+        }
+
+        async function checkCachedFiles() {
+            if (!('caches' in window)) return;
+            try {
+                const cache = await caches.open('dkapp-v2');
+                const keys = await cache.keys();
+                keys.forEach(req => {
+                    const url = req.url;
+                    availableFiles.forEach(fileName => {
+                        if (url.includes(fileName)) {
+                            cachedFiles.add(fileName);
+                        }
+                    });
+                });
+            } catch (e) {
+                console.log('Cache check error:', e);
+            }
+        }
+
+        async function cacheFileForOffline(url, fileName, event) {
+            if (event) event.stopPropagation();
+            if (cachedFiles.has(fileName)) return;
+
+            try {
+                const response = await fetch(url);
+                if (response.ok && 'caches' in window) {
+                    const cache = await caches.open('dkapp-v2');
+                    await cache.put(url, response.clone());
+                    cachedFiles.add(fileName);
+                    // Update UI
+                    const today = getDateSwedish(0);
+                    const tomorrow = getDateSwedish(1);
+                    await updateCacheStatus('today', today);
+                    await updateCacheStatus('tomorrow', tomorrow);
+                }
+            } catch (e) {
+                console.log('Cache error:', e);
+            }
+        }
+
+        async function updateCacheStatus(dayKey, date) {
+            for (const route of LA_ROUTES) {
+                const fileName = getFileName(route.id, date);
+                const cacheBtn = document.getElementById(`cache-${dayKey}-${route.id}`);
+                if (cacheBtn && cachedFiles.has(fileName)) {
+                    cacheBtn.classList.add('cached');
+                    cacheBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+                    cacheBtn.onclick = null;
+                }
+            }
         }
 
         function isFileAvailable(fileName) {
@@ -1654,18 +1743,25 @@
                 const url = getFullUrl(fileName);
                 const isAvailable = isFileAvailable(fileName);
                 const isDownloaded = downloadedFiles.has(`${dayKey}-${route.id}`);
+                const isCached = cachedFiles.has(fileName);
 
                 const routeRettelser = rettelser.filter(r => r.routeId === route.id);
                 const rettelseHtml = renderRettelseHtml(routeRettelser, dayKey);
 
                 const shortFileName = fileName.length > 16 ? fileName.substring(0, 16) + '...' : fileName;
+                const statusText = isCached ? '✓ Sparad offline' : (isAvailable ? '✓ Tillgänglig' : 'Kommer senare');
+                const statusClass = isCached ? 'cached' : (isAvailable ? '' : 'unavailable');
+
                 return `
                 <div class="download-item" id="item-${dayKey}-${route.id}">
                     <div class="download-item-row">
                         <div class="download-item-clickable ${isAvailable ? '' : 'disabled'}" onclick="${isAvailable ? `openPdfOverlay('${url}', '${fileName}')` : ''}">
                             <div class="route-name">${route.name}</div>
                             <div class="file-name">${shortFileName}</div>
-                            <div class="file-status ${isAvailable ? '' : 'unavailable'}">${isAvailable ? '✓ Tillgänglig' : 'Kommer senare'}</div>
+                            <div class="file-status ${statusClass}">${statusText}</div>
+                        </div>
+                        <div class="cache-btn ${isCached ? 'cached' : ''} ${isAvailable ? '' : 'disabled'}" id="cache-${dayKey}-${route.id}" onclick="${isAvailable && !isCached ? `cacheFileForOffline('${url}', '${fileName}', event)` : ''}" title="${isCached ? 'Sparad offline' : 'Spara för offline'}">
+                            <svg viewBox="0 0 24 24"><path d="${isCached ? 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z' : 'M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10 10-4.49 10-10S17.51 2 12 2zm-1 15l-5-5 1.41-1.41L11 14.17l7.59-7.59L20 8l-9 9z'}"/></svg>
                         </div>
                         <div class="download-sidebar ${isAvailable ? '' : 'disabled'}" id="dlbtn-${dayKey}-${route.id}" onclick="${isAvailable ? `downloadPdf('${url}', '${fileName}', '${dayKey}', '${route.id}', event)` : ''}">
                             <svg viewBox="0 0 24 24"><path d="${isDownloaded ? 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z' : 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'}"/></svg>
@@ -1699,6 +1795,8 @@
             syncStatus.classList.remove('synced');
 
             const success = await fetchAvailableFiles();
+            await checkCachedFiles();
+
             const today = getDateSwedish(0);
             const tomorrow = getDateSwedish(1);
 
@@ -1719,7 +1817,8 @@
             renderDownloadItems('downloadsListTomorrow', tomorrow, 'tomorrow', rettelserTomorrow);
 
             if (success && availableFiles.length > 0) {
-                syncStatus.textContent = `✓ ${availableFiles.length} filer synkade`;
+                const cachedCount = cachedFiles.size;
+                syncStatus.textContent = cachedCount > 0 ? `✓ ${cachedCount} offline` : `✓ ${availableFiles.length} filer`;
                 syncStatus.classList.add('synced');
             } else {
                 syncStatus.textContent = 'Väntar på GitHub Actions...';
