@@ -279,13 +279,18 @@
 
         .download-item {
             display: flex;
-            flex-direction: column;
-            gap: 4px;
+            flex-direction: row;
             padding: 0;
             background: var(--bg-primary);
             border-radius: 8px;
             border: 1px solid var(--border);
             overflow: hidden;
+        }
+
+        .download-item-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
         }
 
         .download-item-row {
@@ -379,40 +384,42 @@
         }
 
         .cache-btn {
-            width: 10%;
-            min-width: 36px;
+            width: 44px;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: var(--accent);
+            background: var(--bg-primary);
             cursor: pointer;
-            transition: opacity 0.2s ease;
+            transition: all 0.2s ease;
             border-left: 1px solid var(--border);
         }
 
         .cache-btn:hover:not(.cached):not(.disabled) {
-            opacity: 0.85;
+            background: var(--accent-light);
+        }
+
+        .cache-btn:hover:not(.cached):not(.disabled) svg {
+            fill: var(--accent);
         }
 
         .cache-btn.cached {
-            background: var(--bg-primary);
-            border: 1px solid var(--border);
             cursor: default;
+            background: var(--success-light);
         }
 
         .cache-btn.cached svg {
-            fill: var(--text-secondary);
+            fill: var(--success);
         }
 
         .cache-btn.disabled {
-            background: var(--border);
+            opacity: 0.5;
             cursor: not-allowed;
         }
 
         .cache-btn svg {
-            width: 16px;
-            height: 16px;
-            fill: white;
+            width: 18px;
+            height: 18px;
+            fill: var(--text-secondary);
         }
 
         
@@ -1493,7 +1500,7 @@
             <input type="password" id="passwordInput" class="password-input" placeholder="Lösenord" autofocus>
             <button class="password-btn" onclick="checkPassword()">Öppna</button>
             <div class="password-error hidden" id="passwordError">Fel lösenord</div>
-            <span class="login-version">v0.8</span>
+            <span class="login-version">v0.02</span>
         </div>
     </div>
 
@@ -1508,7 +1515,7 @@
             <button class="refresh-btn" onclick="refreshLaDisplay()" title="Uppdatera">
                 <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
             </button>
-            <span class="version-label">v0.8</span>
+            <span class="version-label">v0.02</span>
         </div>
     </div>
 
@@ -2003,14 +2010,14 @@
         }
 
         function isTomorrowUnlocked() {
-            // Tomorrow's LA is available after 16:00 Copenhagen time
+            // Tomorrow's LA is available after 18:00 Copenhagen time
             const now = new Date();
             const copenhagenHour = parseInt(new Intl.DateTimeFormat('en-US', {
                 timeZone: 'Europe/Copenhagen',
                 hour: 'numeric',
                 hour12: false
             }).format(now));
-            return copenhagenHour >= 16;
+            return copenhagenHour >= 18;
         }
 
         function getDateSwedish(daysOffset = 0) {
@@ -2100,22 +2107,24 @@
                 const rettelseHtml = renderRettelseHtml(routeRettelser, dayKey);
 
                 const shortFileName = fileName.length > 16 ? fileName.substring(0, 16) + '...' : fileName;
-                const statusText = isCached ? '✓ Sparad offline' : (isTomorrowLocked ? 'Kommer kl 16:00' : (isAvailable ? '✓ Tillgänglig' : 'Kommer senare'));
+                const statusText = isCached ? '✓ Sparad offline' : (isTomorrowLocked ? 'Kommer kl 18:00' : (isAvailable ? '✓ Tillgänglig' : 'Kommer senare'));
                 const statusClass = isCached ? 'cached' : (isAvailable ? '' : 'unavailable');
 
                 return `
                 <div class="download-item" id="item-${dayKey}-${route.id}">
-                    <div class="download-item-row">
-                        <div class="download-item-clickable ${isAvailable || isCached ? '' : 'disabled'}" onclick="${isAvailable || isCached ? `openPdfOverlay('${url}', '${fileName}')` : ''}">
-                            <div class="route-name">${route.name}</div>
-                            <div class="file-name">${shortFileName}</div>
-                            <div class="file-status ${statusClass}">${statusText}</div>
+                    <div class="download-item-content">
+                        <div class="download-item-row">
+                            <div class="download-item-clickable ${isAvailable || isCached ? '' : 'disabled'}" onclick="${isAvailable || isCached ? `openPdfOverlay('${url}', '${fileName}')` : ''}">
+                                <div class="route-name">${route.name}</div>
+                                <div class="file-name">${shortFileName}</div>
+                                <div class="file-status ${statusClass}">${statusText}</div>
+                            </div>
                         </div>
-                        <div class="cache-btn ${isCached ? 'cached' : ''} ${isAvailable ? '' : 'disabled'}" id="cache-${dayKey}-${route.id}" onclick="${isAvailable && !isCached ? `cacheFileForOffline('${url}', '${fileName}', event)` : ''}" title="${isCached ? 'Sparad offline' : 'Spara för offline'}">
-                            <svg viewBox="0 0 24 24"><path d="${isCached ? 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z' : 'M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10 10-4.49 10-10S17.51 2 12 2zm-1 15l-5-5 1.41-1.41L11 14.17l7.59-7.59L20 8l-9 9z'}"/></svg>
-                        </div>
+                        ${rettelseHtml}
                     </div>
-                    ${rettelseHtml}
+                    <div class="cache-btn ${isCached ? 'cached' : ''} ${isAvailable ? '' : 'disabled'}" id="cache-${dayKey}-${route.id}" onclick="${isAvailable && !isCached ? `cacheFileForOffline('${url}', '${fileName}', event)` : ''}" title="${isCached ? 'Sparad offline' : 'Spara för offline'}">
+                        <svg viewBox="0 0 24 24"><path d="${isCached ? 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z' : 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'}"/></svg>
+                    </div>
                 </div>`;
             }).join('');
         }
