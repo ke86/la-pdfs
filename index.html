@@ -1493,7 +1493,7 @@
             <input type="password" id="passwordInput" class="password-input" placeholder="Lösenord" autofocus>
             <button class="password-btn" onclick="checkPassword()">Öppna</button>
             <div class="password-error hidden" id="passwordError">Fel lösenord</div>
-            <span class="login-version">v0.5</span>
+            <span class="login-version">v0.6</span>
         </div>
     </div>
 
@@ -1508,7 +1508,7 @@
             <button class="refresh-btn" onclick="refreshLaDisplay()" title="Uppdatera">
                 <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
             </button>
-            <span class="version-label">v0.5</span>
+            <span class="version-label">v0.6</span>
         </div>
     </div>
 
@@ -1834,7 +1834,27 @@
             try {
                 const response = await fetchWithTimeout(indexUrl + '?t=' + Date.now(), 3000);
                 if (response.ok) {
-                    availableFiles = await response.json();
+                    let files = await response.json();
+
+                    // Verify each file actually exists with HEAD requests
+                    const verifiedFiles = [];
+                    await Promise.all(files.map(async (fileName) => {
+                        try {
+                            const fileUrl = GITHUB_PAGES_URL + fileName;
+                            const headResponse = await fetchWithTimeout(fileUrl, 2000);
+                            if (headResponse.ok) {
+                                verifiedFiles.push(fileName);
+                            } else {
+                                console.log('Fil finns inte:', fileName);
+                            }
+                        } catch (e) {
+                            console.log('Kunde inte verifiera:', fileName);
+                        }
+                    }));
+
+                    availableFiles = verifiedFiles;
+                    console.log('Verifierade filer:', verifiedFiles.length, 'av', files.length);
+
                     // Cache for offline
                     if ('caches' in window) {
                         const cache = await caches.open('dkapp-v2');
